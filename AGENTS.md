@@ -11,6 +11,10 @@
 
 Work is tracked in GitHub Issues for `mamachanko/backgammon-duel`. See `docs/agents/issue-tracker.md`.
 
+### Triage labels
+
+Use the default triage labels for GitHub Issues. See `docs/agents/triage-labels.md`.
+
 ### Domain docs
 
 This repo uses a single-context layout. See `docs/agents/domain.md`.
