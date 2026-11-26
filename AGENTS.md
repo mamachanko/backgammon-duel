@@ -4,3 +4,13 @@
 - Run `bash scripts/check-site.sh` before opening a pull request. Add the relevant tests to **Check site** when you add dependencies or a build step.
 - Use Conventional Commits. Open a pull request and leave the merge to a repository administrator.
 - Keep versioned GitHub Action references in local composite actions under `.github/actions/` so Renovate can update them.
+
+## Agent skills
+
+### Issue tracker
+
+Work is tracked in GitHub Issues for `mamachanko/backgammon-duel`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+This repo uses a single-context layout. See `docs/agents/domain.md`.
