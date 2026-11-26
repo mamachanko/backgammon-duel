@@ -17,15 +17,30 @@ function resetTurn() {
 function remaining() {
   return roll.filter(die => !history.some(step => step.die === die));
 }
+// Replay the other steps so an independent checker can be returned first.
+function replay(steps) {
+  const board = initial.slice();
+  for (const {from, to} of steps) {
+    if (board[from] < 1 || board[to] < -1) return null;
+    board[from]--;
+    board[to] = Math.max(0, board[to]) + 1;
+  }
+  return board;
+}
+function returns(point) {
+  return history.filter(step => step.to === point && replay(history.filter(other => other !== step)));
+}
 function destinations(point) {
   if (!point || position[point] <= 0) return [];
-  return remaining().map(die => point-die).filter(to => to > 0 && position[to] >= -1);
+  const forward = remaining().map(die => point-die).filter(to => to > 0 && position[to] >= -1);
+  return forward.concat(returns(point).map(step => step.from));
 }
 function activate(point) {
   if (destinations(selected).includes(point)) {
-    history.push({from:selected, to:point, die:selected-point, before:position.slice()});
-    position[selected]--;
-    position[point] = Math.max(0, position[point])+1;
+    const back = returns(selected).find(step => step.from === point);
+    if (back) history = history.filter(step => step !== back);
+    else history.push({from:selected, to:point, die:selected-point});
+    position = replay(history);
     selected = null;
   } else if (selected === point) selected = null;
   else if (destinations(point).length) selected = point;
@@ -36,6 +51,7 @@ function pointButton(point, column, row) {
   const count = position[point];
   const legal = destinations(selected).includes(point);
   button.className = ['point',row === 2 ? 'bottom' : '',point === selected ? 'selected' : '',legal ? 'legal' : ''].join(' ');
+  if (legal && point > selected) button.classList.add('return');
   button.style.gridColumn = column;
   button.style.gridRow = enlarged ? 1 : row;
   button.style.setProperty('--point',point%2 ? '#bd805d' : '#568174');
@@ -47,6 +63,7 @@ function pointButton(point, column, row) {
   for (let i=0; i<Math.min(5,Math.abs(count)); i++) {
     const checker = document.createElement('span');
     checker.className = 'checker'+(count<0?' ivory':'');
+    checker.style.setProperty('--depth',i);
     stack.append(checker);
   }
   const label = document.createElement('span');
@@ -88,12 +105,13 @@ function render() {
     }
     el('dice').append(die);
   }
-  el('prompt').textContent=selected ? 'From '+selected+' · Tap point '+destinations(selected).join(' or ')+'.' : left.length?'Tap a charcoal checker, then its landing point.':'Both dice played. Submit when you’re ready.';
+  el('dice').setAttribute('aria-label', 'Dice remaining: '+(left.join(' and ') || 'none'));
+  el('prompt').textContent=selected ? 'From '+selected+' · '+destinations(selected).map(p=>p>selected?'Return to '+p:'Move to '+p).join(' · ') : history.length?'Move a checker back to change your play.':'Drag a checker, or tap it and its destination.';
   el('moves').textContent=history.map(s=>s.from+'/'+s.to).join('   ');
   el('mode').disabled=history.length>0 || scores.length>0;
   el('undo').disabled=!history.length;
   el('submit').disabled=left.length!==0;
-  el('turn').textContent=scores.length?'Mum’s turn':'Your turn';
+
   document.querySelector('#play h1').textContent=scores.length?'Mum’s move':'Your move';
 }
 el('board').onclick=e=>{
@@ -109,11 +127,29 @@ el('board').addEventListener('pointerdown',e=>{
   if (!button || !destinations(Number(button.dataset.point)).length) return;
   drag={from:Number(button.dataset.point),x:e.clientX,y:e.clientY};
 });
-window.addEventListener('pointercancel',()=>{drag=null;});
+let lifted;
+function endDrag() {
+  lifted?.remove();
+  lifted=null;
+  drag=null;
+}
+window.addEventListener('pointercancel',endDrag);
+window.addEventListener('pointermove',e=>{
+  if (!drag || Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<8 && !lifted) return;
+  if (!lifted) {
+    selected=drag.from;
+    render();
+    lifted=document.createElement('span');
+    lifted.className='checker lifted';
+    document.body.append(lifted);
+  }
+  lifted.style.left=e.clientX+'px';
+  lifted.style.top=e.clientY+'px';
+});
 window.addEventListener('pointerup',e=>{
   if (!drag) return;
   const {from,x,y}=drag;
-  drag=null;
+  endDrag();
   if (Math.hypot(e.clientX-x,e.clientY-y)<8) return;
   const target=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-point]');
   suppressClick=true;
@@ -129,7 +165,7 @@ for (let i=0;i<4;i++) {
   button.onclick=()=>{quadrant=i;drawBoard();};
   el('quarters').append(button);
 }
-el('undo').onclick=()=>{position=history.pop().before;selected=null;render();};
+el('undo').onclick=()=>{history.pop();position=replay(history);selected=null;render();};
 function screen(id) {
   for (const name of ['play','pass','review']) el(name).hidden=name!==id;
   window.scrollTo(0,0);
